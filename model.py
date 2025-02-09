@@ -2,6 +2,7 @@ from tensorflow.keras.models import Sequential, load_model, clone_model
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Dropout
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
+from tensorflow.keras.regularizers import l2
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -21,8 +22,10 @@ def create_transfer_learning_model(input_shape):
     x = base_model.output
     x = Flatten()(x)
     x = Dense(256, activation='relu')(x)
+
     x = Dropout(0.5)(x)
     predictions = Dense(3, activation='softmax')(x)
+    
 
     model = Model(inputs=base_model.input, outputs=predictions)
     return model
@@ -32,9 +35,9 @@ def load_test_data(directory):
     y_test = []
     
     for file_name in os.listdir(directory):
-        if file_name.endswith('.npz'):
+        if file_name.endswith('.npz') and not file_name.startswith('._'):
             file_path = os.path.join(directory, file_name)
-            data = np.load(file_path)
+            data = np.load(file_path, allow_pickle=True)
             
             image = data['image']
             if len(image.shape) == 3:
@@ -57,9 +60,9 @@ def load_data_from_directory(directory):
     y_data = []
     
     for file_name in os.listdir(directory):
-        if file_name.endswith('.npz'):
+        if file_name.endswith('.npz') and not file_name.startswith('._'):
             file_path = os.path.join(directory, file_name)
-            data = np.load(file_path)
+            data = np.load(file_path, allow_pickle=True)
             
             # Add a batch dimension to the image if needed
             image = data['image']
@@ -117,18 +120,21 @@ X_data_list = []
 y_data_list = []
 
 for directory in directories:
+    
     X_data, y_data = load_data_from_directory(directory)
     X_data_list.append(X_data)
     y_data_list.append(y_data)
 
 # Concatenate data from all directories
+
 X_data = np.concatenate(X_data_list, axis=0)
 y_data = np.concatenate(y_data_list, axis=0)
 
 # Split the data into training and validation sets
 X_train, X_val, y_train, y_val = train_test_split(X_data, y_data, test_size=0.15, random_state=42)
-
+print("X_train shape:", X_train.shape)
 model = create_transfer_learning_model(input_shape=(240, 240, 3))
+# model = create_model(input_shape=(240, 240, 3))
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 # Create data augmentation generator
 datagen = ImageDataGenerator(
@@ -141,7 +147,7 @@ datagen = ImageDataGenerator(
 datagen.fit(X_train)
 
 # Callbacks
-early_stopping = EarlyStopping(monitor='val_accuracy', patience=15, restore_best_weights=True)
+early_stopping = EarlyStopping(monitor='val_accuracy', patience=50, restore_best_weights=True)
 lr_scheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5, min_lr=1e-6)
 
 # Train the model
@@ -186,161 +192,4 @@ print(report)
 # Save the test results to training_history.json
 with open('training_history.json', 'w') as f:
     json.dump(history.history, f)
-
-
-
-
-# Initialize K-fold cross validation
-# n_folds = 5
-# kfold = KFold(n_splits=n_folds, shuffle=True, random_state=42)
-
-# # Lists to store the performance metrics for each fold
-# fold_scores = []
-# histories = []
-
-# # Perform k-fold cross validation
-# for fold, (train_idx, val_idx) in enumerate(kfold.split(X_data)):
-#     print(f'\nFold {fold + 1}/{n_folds}')
-    
-#     # Split the data
-#     X_train, X_val = X_data[train_idx], X_data[val_idx]
-#     y_train, y_val = y_data[train_idx], y_data[val_idx]
-    
-#     # Create and compile the model
-#     model = create_model(input_shape=(240, 240, 3))
-#     model.compile(
-#         optimizer='adam',
-#         loss='categorical_crossentropy',
-#         metrics=['accuracy']
-#     )
-    
-#     # Create data augmentation generator for training data
-#     datagen = ImageDataGenerator(
-#         rotation_range=20,
-#         horizontal_flip=True,
-#         vertical_flip=True
-#     )
-    
-#     # Fit the generator on the training data
-#     datagen.fit(X_train)
-    
-#     # Callbacks
-#     early_stopping = EarlyStopping(
-#         monitor='val_accuracy',
-#         patience=50,
-#         restore_best_weights=True
-#     )
-    
-#     lr_scheduler = ReduceLROnPlateau(
-#         monitor='val_loss',
-#         factor=0.1,
-#         patience=5,
-#         min_lr=1e-6
-#     )
-    
-#     # Train the model
-#     history = model.fit(
-#         datagen.flow(X_train, y_train, batch_size=32),
-#         validation_data=(X_val, y_val),
-#         epochs=50,
-#         callbacks=[early_stopping, lr_scheduler]
-#     )
-    
-#     # Evaluate the model
-#     scores = model.evaluate(X_val, y_val, verbose=0)
-#     print(f'Fold {fold + 1} - Loss: {scores[0]:.4f}, Accuracy: {scores[1]:.4f}')
-    
-#     # Store the scores and history
-#     fold_scores.append(scores[1])  # storing accuracy
-#     histories.append(history.history)
-    
-#     # Save the model for this fold
-#     model.save(f'model_fold_{fold + 1}.keras')
-
-# # Print the results
-# print('\nK-Fold Cross-Validation Results:')
-# print(f'Mean Accuracy: {np.mean(fold_scores):.4f} (+/- {np.std(fold_scores):.4f})')
-
-# # Save the cross-validation results
-# cv_results = {
-#     'fold_scores': fold_scores,
-#     'histories': histories,
-#     'mean_accuracy': float(np.mean(fold_scores)),
-#     'std_accuracy': float(np.std(fold_scores))
-# }
-
-# with open('cv_results.json', 'w') as f:
-#     json.dump(cv_results, f)
-
-# # Assuming you have already trained your models and stored them
-# fold_models = []  # List to store models from each fold
-# fold_scores = []  # List to store scores for each fold
-
-# # After training each fold, append the model to fold_models
-# for fold in range(n_folds):
-#     model = load_model(f'model_fold_{fold + 1}.keras')  # Load each fold's model
-#     fold_models.append(model)
-
-# # Average the weights of the models
-# def average_models(models):
-#     # Get the weights of the first model
-#     avg_weights = [np.zeros_like(w) for w in models[0].get_weights()]
-    
-#     # Sum the weights of all models
-#     for model in models:
-#         for i, w in enumerate(model.get_weights()):
-#             avg_weights[i] += w
-    
-#     # Average the weights
-#     avg_weights = [w / len(models) for w in avg_weights]
-    
-#     # Create a new model instance
-#     avg_model = clone_model(models[0])  # Create a new model with the same architecture
-#     avg_model.build(models[0].input_shape)  # Build the model with the input shape
-#     avg_model.set_weights(avg_weights)  # Set the averaged weights
-    
-#     return avg_model
-
-# # Create the averaged model
-# averaged_model = average_models(fold_models)
-
-# # Compile the averaged model
-# averaged_model.compile(
-#     optimizer='adam',  # You can choose any optimizer you prefer
-#     loss='categorical_crossentropy',  # Use the same loss function as before
-#     metrics=['accuracy']  # Metrics to monitor
-# )
-
-
-
-
-
-
-
-
-# # Evaluate each fold's model and the averaged model
-# best_model = None
-# best_accuracy = 0.0
-
-# for fold, model in enumerate(fold_models):
-#     test_loss, test_accuracy = model.evaluate(X_test, y_test, verbose=2)
-#     print(f"Fold {fold + 1} - Test accuracy: {test_accuracy:.4f}, Test loss: {test_loss:.4f}")
-    
-#     # Save the best model based on test accuracy
-#     if test_accuracy > best_accuracy:
-#         best_accuracy = test_accuracy
-#         best_model = model
-
-# # Evaluate the averaged model
-# avg_test_loss, avg_test_accuracy = averaged_model.evaluate(X_test, y_test, verbose=2)
-# print(f"Averaged Model - Test accuracy: {avg_test_accuracy:.4f}, Test loss: {avg_test_loss:.4f}")
-
-# # Check if the averaged model is the best
-# if avg_test_accuracy > best_accuracy:
-#     best_accuracy = avg_test_accuracy
-#     best_model = averaged_model
-
-# # Save the best model
-# best_model.save('best_model.keras')
-# print(f"Best model saved with accuracy: {best_accuracy:.4f}")
 
