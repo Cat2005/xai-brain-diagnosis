@@ -1,6 +1,6 @@
 # 🧠 Interpretable Brain Tumor Classification from MRI Scans
 
-My dissertation project explores a more **interpretable** approach to classifying from MRI scans. While deep learning models have demonstrated high accuracy in medical imaging, they often function as **"black boxes"**, providing little insight into *why* certain predictions are made. The goal of the project is to **preserve predictive performance** while introducing **clinically meaningful explanations**—a crucial step for adoption in **high-stakes medical settings**.
+My dissertation project explores a more **interpretable** approach to diagnosing brain tumors from MRI scans. While deep learning models have demonstrated high accuracy in medical imaging, they often function as **"black boxes"**, providing little insight into *why* certain predictions are made. The goal of the project is to **preserve predictive performance** while introducing **clinically meaningful explanations**, which is crucial for adoption in **high-stakes medical settings**.
 
 ![Concept Bottleneck Architecture](imgs/concept-encoder.png)
 *Overview of Concept Encoder architecture*
